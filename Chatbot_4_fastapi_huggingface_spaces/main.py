@@ -136,7 +136,7 @@ image_cache = {}
 async def upload_file(file: UploadFile = File(...)):
     try:
         # file = request.files['file']
-        if file.filename.endswith('.jpg'):
+        if file.filename.endswith(('.png', '.jpg', '.jpeg')):
             contents = await file.read()
             image = Image.open(BytesIO(contents))
             # image = Image.open(file.stream)
