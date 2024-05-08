@@ -6,9 +6,11 @@ from PIL import Image
 import torch
 from transformers import AutoProcessor, LlavaForConditionalGeneration, BitsAndBytesConfig
 from deep_translator import GoogleTranslator
-from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
+# from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 import warnings 
 from flask import Flask
+import base64
+from io import BytesIO
 
 # from flask_ngrok import run_with_ngrok
 app = Flask(__name__)
@@ -93,35 +95,40 @@ def facebook_bn_en(input_sentence):
   return translated_text_en
 # print("Translated English:", translated_text_en)
 
-def facebook_en_bn(input_sentence):
-  # Translate English to Bengali
-#   model = M2M100ForConditionalGeneration.from_pretrained("facebook/m2m100_418M")
-#   tokenizer = M2M100Tokenizer.from_pretrained("facebook/m2m100_418M")
-  tokenizer.src_lang = "en"
-  encoded_en = tokenizer(input_sentence, return_tensors="pt")
-  generated_tokens = model.generate(**encoded_en, forced_bos_token_id=tokenizer.get_lang_id("bn"))
-  translated_text_bn = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
-  return translated_text_bn
+# def facebook_en_bn(input_sentence):
+#   # Translate English to Bengali
+# #   model = M2M100ForConditionalGeneration.from_pretrained("facebook/m2m100_418M")
+# #   tokenizer = M2M100Tokenizer.from_pretrained("facebook/m2m100_418M")
+#   tokenizer.src_lang = "en"
+#   encoded_en = tokenizer(input_sentence, return_tensors="pt")
+#   generated_tokens = model.generate(**encoded_en, forced_bos_token_id=tokenizer.get_lang_id("bn"))
+#   translated_text_bn = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+#   return translated_text_bn
 
-def facebook_response(url, input_sentence):
-  url = input("ইমেজ url লিখুন: ")
-  input_sentence = input("ছবি সম্পর্কে আপনার প্রশ্ন লিখুন: ")
-  image_prompt = facebook_bn_en(input_sentence)
-  response = inference(image_prompt, url)
-  assistant_index = response.find("ASSISTANT:")
-  extracted_string = response[assistant_index + len("ASSISTANT:"):].strip()
-  output = facebook_en_bn(extracted_string)
-  print("বটী: ", output)
-  return output
+# def facebook_response(url, input_sentence):
+#   url = input("ইমেজ url লিখুন: ")
+#   input_sentence = input("ছবি সম্পর্কে আপনার প্রশ্ন লিখুন: ")
+#   image_prompt = facebook_bn_en(input_sentence)
+#   response = inference(image_prompt, url)
+#   assistant_index = response.find("ASSISTANT:")
+#   extracted_string = response[assistant_index + len("ASSISTANT:"):].strip()
+#   output = facebook_en_bn(extracted_string)
+#   print("বটী: ", output)
+#   return output
 
 
 image_cache = {}
-@app.route('/upload/', methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def upload_file():
     try:
         file = request.files['file']
-        if file.filename.endswith('.jpg'):
+        if file.filename.endswith(('.png', '.jpg', '.jpeg')):
             image = Image.open(file.stream)
+            # Convert the image to a base64 string and store it in cache
+            buffered = BytesIO()
+            image.save(buffered, format="JPEG")
+            image_base64 = base64.b64encode(buffered.getvalue())
+            image = Image.open(BytesIO(base64.b64decode(image_base64)))
             # Store the image in cache (replace with a more suitable storage approach)
             image_cache['image'] = image
             # print("Processing complete. Image stored in cache.")
@@ -133,11 +140,9 @@ def upload_file():
         return jsonify({'status': 'error', 'message': str(e)})
 
 
-@app.route("/")
-def home():
-    return render_template("index.html")
 
-@app.route("/get/")
+
+@app.route("/get")
 def get_bot_response():
     try:
       if 'image' in image_cache:
@@ -151,11 +156,17 @@ def get_bot_response():
           return "Please upload an image to continue"
     except Exception as e:
         return f"Error: {str(e)}"
+    
+
+@app.route("/")
+def home():
+    image_cache.clear()
+    return render_template("index.html")
 
 
 # Run the Flask app
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=7860, debug=True)
 
 
 # from pymongo import MongoClient
